@@ -63,8 +63,6 @@ class Pawn < Piece
     @vector_multiple = @move_taken ? 1 : 2
     @valid_take_vector = [[1,1],[-1,1]]
   end
-# valid move vector x2 => different if has_moved is false
-# valid take vector is different
 end
 
 class King < Piece
