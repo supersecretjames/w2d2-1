@@ -59,7 +59,7 @@ class Pawn < Piece
   attr_reader :valid_take_vector
   def initialize(color)
     super(color)
-    @valid_move_vector = [[0,1]]
+    @valid_move_vector = [[1,0]]
     @vector_multiple = @move_taken ? 1 : 2
     @valid_take_vector = [[1,1],[-1,1]]
   end
@@ -75,12 +75,39 @@ end
 
 class HumanPlayer
 # displays user prompts and gets user input
+
+  attr_reader :color
+
   def initialize(color)
     @color = color
   end
 
-  def prompt_moves
-    puts "Select the square of the piece you would like to move."
+  def prompt_start_move
+    start_space = nil
+    until start_space
+      puts "Select the square of the piece you would like to move from."
+      start_space = translate(gets.chomp)
+    end
+    start_space
+  end
+
+  def prompt_end_move
+    end_space = nil
+    until end_space
+      puts "Select the square of the piece you would like to move to."
+      end_space = translate(gets.chomp)
+    end
+    end_space
+  end
+
+  def translate(string)
+    # E4 => 5,3
+    letter, number = string.scan(/[a-h]/)[0], string.scan(/[1-8]/)[0]
+    unless letter && number
+      puts "That is not a valid square"
+      return nil
+    end
+    [(8 - number.to_i), (letter.ord - "a".ord) ]
   end
 end
 
@@ -94,16 +121,16 @@ class Board
   end
 
   def color(position)
-    color = position[1] < 3 ? :white : :black
+    color = position[0] < 3 ? :black : :white
   end
 
   def setup
-    castle_start = [[0,7],[7,7],[0,0],[7,0]]
-    knight_start = [[1,7],[6,7],[1,0],[6,0]]
-    bishop_start = [[2,7],[5,7],[2,0],[5,0]]
-    king_start,queen_start = [[3,7],[3,0]],[[4,7],[4,0]]
+    castle_start = [[0,0],[0,7],[7,0],[7,7]]
+    knight_start = [[0,1],[0,6],[7,1],[7,6]]
+    bishop_start = [[0,2],[0,5],[7,2],[7,5]]
+    king_start,queen_start = [[0,3],[7,3]],[[0,4],[7,4]]
     pawn_start = []
-    8.times {|i| pawn_start << [i,6] ; pawn_start << [i,1] }
+    8.times {|i| pawn_start << [1,i] ; pawn_start << [6,i] }
 
     castle_start.each {|pos| @board[pos[0]][pos[1]] = Castle.new(color(pos))}
     knight_start.each {|pos| @board[pos[0]][pos[1]] = Knight.new(color(pos))}
@@ -118,7 +145,7 @@ class Board
   end
 
   def display
-    dup.transpose.each do |row|
+    dup.each do |row|
       row.each do |space|
         print "|"
         print case space.class.to_s
@@ -135,13 +162,23 @@ class Board
         when "Pawn"
            " P(#{space.color})  "
         when "NilClass"
-           " *  "
+           "     *     "
         end
       end
       puts "|"
     end
     nil
   end
+
+  def piece(position)
+    @board[position[0]][position[1]]
+  end
+
+  def move_piece(start_end_array)
+
+  end
+
+
 
 # keeps track of turns and makes moves
 # determines game state and legal moves
@@ -154,6 +191,37 @@ class Board
 end
 
 class Chess
+  def initialize
+    @board = Board.new
+    @players = [HumanPlayer.new(:white),HumanPlayer.new(:black)]
+  end
+
+  def check_start_move_color(turn_taking_player, position)
+    @board.piece(position).color == turn_taking_player.color
+  end
+
+  def play
+    until false
+      turn_taking_player = @players[0]
+      start_valid = false; piece = nil
+      until start_valid && piece
+        puts "#{turn_taking_player.color}'s move!"
+        @board.display
+        start_move_position = turn_taking_player.prompt_start_move
+        piece = @board.piece(start_move_position)
+        start_valid = check_start_move_color(turn_taking_player, start_move_position)
+      end
+      p piece.inspect
+      end_valid = false
+      until end_valid
+        end_move_position = turn_taking_player.prompt_end_move
+        # verify it makes a move tree
+        # verify that player's own king does not go into check
+        end_valid = true
+      end
+      @players.reverse!
+    end
+  end
 # calls on Player for moves and on Board to make the moves actually happen
 # in a loop until win
 end
