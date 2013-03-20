@@ -15,13 +15,12 @@
 #Chess
 
 
-#only pawn has valid_take_vector, if valid_take_vector is nil, we use the valid_move_vector
+#only pawn has valid_take_vector, if valid_take_vector is nil, we use the valid_move_vectors
 
 class Piece
-  attr_reader :valid_move_vector, :color
+  attr_reader :valid_move_vectors, :vector_multiple, :color
   def initialize(color)
     @color = color
-    @in_play = true
     @has_moved = false
     @direction = @color == :white ? 1 : -1
     @vector_multiple = 1
@@ -31,7 +30,7 @@ end
 class Knight < Piece
   def initialize(color)
     super(color)
-    @valid_move_vector = [[2,1],[1,2],[-2,1],[-1,2],[2,-1],[1,-2],[-2,-1],[-1,-2]]
+    @valid_move_vectors = [[2,1],[1,2],[-2,1],[-1,2],[2,-1],[1,-2],[-2,-1],[-1,-2]]
     @vector_multiple = 1
   end
 # valid move vector => vectors and vector multiples
@@ -40,7 +39,7 @@ end
 class Bishop < Piece
   def initialize(color)
     super(color)
-    @valid_move_vector = [[1,1],[1,-1],[-1,1],[-1,1]]
+    @valid_move_vectors = [[1,1],[1,-1],[-1,1],[-1,1]]
     @vector_multiple = 100
   end
 # valid move vector
@@ -49,7 +48,7 @@ end
 class Queen < Piece
   def initialize(color)
     super(color)
-    @valid_move_vector = [[1,1],[1,-1],[-1,1],[-1,1],[1,0],[-1,0],[0,1],[0,-1]]
+    @valid_move_vectors = [[1,1],[1,-1],[-1,1],[-1,1],[1,0],[-1,0],[0,1],[0,-1]]
     @vector_multiple = 100
   end
 # valid move vector
@@ -59,18 +58,26 @@ class Pawn < Piece
   attr_reader :valid_take_vector
   def initialize(color)
     super(color)
-    @valid_move_vector = [[1,0]]
+    @valid_move_vectors = (color == :black) ? [[1,0]] : [[-1,0]]
     @vector_multiple = @move_taken ? 1 : 2
-    @valid_take_vector = [[1,1],[-1,1]]
+    @valid_take_vector = (color == :black) ? [[1,1],[1,-1]] : [[-1,1],[-1,-1]]
   end
 end
 
 class King < Piece
-# valid move vector
+  def initialize(color)
+    super(color)
+    @valid_move_vectors = [[1,1],[1,-1],[-1,1],[-1,1],[1,0],[-1,0],[0,1],[0,-1]]
+    @vector_multiple = 1
+  end
 end
 
 class Castle < Piece
-# valid move vector
+  def initialize(color)
+    super(color)
+    @valid_move_vectors = [[1,0],[0,-1],[-1,0],[0,1]]
+    @vector_multiple = 100
+  end
 end
 
 class HumanPlayer
@@ -117,6 +124,7 @@ class Board
   def initialize
     @dimension = 8
     @board = Array.new(8) { Array.new(8) }
+    @dead_pieces = []
     setup
   end
 
@@ -140,8 +148,72 @@ class Board
     pawn_start.each {|pos| @board[pos[0]][pos[1]] = Pawn.new(color(pos))}
   end
 
+  def valid_moves_in_direction(vector, position)
+    possible_moves = []
+    piece(position).vector_multiple.times do |i|
+      new_position = [position[0] + vector[0] * (i + 1),
+      position[1] + vector[1] * (i + 1)]
+      break unless is_on_board(new_position)
+      if piece(new_position)
+          unless piece(position).color == piece(new_position).color
+            possible_moves << new_position
+          end
+          return possible_moves
+      end
+      possible_moves << new_position
+    end
+    possible_moves
+  end
+
+
+  def possible_moves(position)
+    possible_moves = []
+    piece(position).valid_move_vectors.each do |vector|
+      possible_moves += valid_moves_in_direction(vector, position)
+    end
+    possible_moves
+  end
+
+  def is_on_board(position)
+    position[0] <= 7 && position[0] >= 0 && position[1] <= 7 && position[1] >= 0
+  end
+
+  def make_move(start_position, end_position)
+    if possible_moves(start_position).include?(end_position)
+      #false if @board.check(start_position, end_position)
+      place_piece(start_position, end_position, @board)
+      true
+    else
+      false
+    end
+  end
+
+  def place_piece(start_position, end_position, board)
+    piece_mover = board[start_position[0]][start_position[1]]
+    board[start_position[0]][start_position[1]] = nil
+    @dead_pieces << piece(end_position) if piece(end_position)
+    board[end_position[0]][end_position[1]] = piece_mover
+  end
+
   def dup
     @board.map(&:dup)
+  end
+
+  def check(start_position, end_position)
+    shadow_board = @board.dup
+    color = piece(start_position).color
+    king_position = kingfinder(color, shadow_board)
+    place_piece(start_position, end_position, shadow_board)
+  end
+
+  def kingfinder(color, board)
+    board.each_with_index do |row, r_index|
+      row.each_with_index do |space, c_index|
+        if space.class.to_s == "King" && space.color == color
+          return [r_index, c_index]
+        end
+      end
+    end
   end
 
   def display
@@ -174,20 +246,6 @@ class Board
     @board[position[0]][position[1]]
   end
 
-  def move_piece(start_end_array)
-
-  end
-
-
-
-# keeps track of turns and makes moves
-# determines game state and legal moves
-# checks if player move is in legal move set for given piece
-## generated through shadow boards that are deep-duped from current board
-# checks for wins
-## check if checkmate =>
-# knows where are all pieces are
-# knows which pieces are in taken set
 end
 
 class Chess
@@ -204,20 +262,25 @@ class Chess
     until false
       turn_taking_player = @players[0]
       start_valid = false; piece = nil
+      # grab_piece move
       until start_valid && piece
         puts "#{turn_taking_player.color}'s move!"
         @board.display
         start_move_position = turn_taking_player.prompt_start_move
         piece = @board.piece(start_move_position)
-        start_valid = check_start_move_color(turn_taking_player, start_move_position)
+        if piece
+          start_valid = check_start_move_color(turn_taking_player, start_move_position)
+        end
       end
       p piece.inspect
+      # make_move loop should be put into new loop
       end_valid = false
       until end_valid
         end_move_position = turn_taking_player.prompt_end_move
-        # verify it makes a move tree
-        # verify that player's own king does not go into check
-        end_valid = true
+        end_valid = @board.make_move(start_move_position, end_move_position)
+        if end_valid == false
+          puts "Invalid move - put in new position to put piece into."
+        end
       end
       @players.reverse!
     end
