@@ -59,7 +59,7 @@ class Pawn < Piece
   def initialize(color)
     super(color)
     @valid_move_vectors = (color == :black) ? [[1,0]] : [[-1,0]]
-    @vector_multiple = @move_taken ? 1 : 2
+    @vector_multiple = @move_taken ? 1 : 2 # REV when do you toggle this first move flag?
     @valid_take_vector = (color == :black) ? [[1,1],[1,-1]] : [[-1,1],[-1,-1]]
   end
 end
@@ -176,7 +176,7 @@ class Board
 
   def is_on_board(position)
     position[0] <= 7 && position[0] >= 0 && position[1] <= 7 && position[1] >= 0
-  end
+  end # REV You can use between? here to save some space.
 
   def make_move(start_position, end_position)
     if possible_moves(start_position).include?(end_position)
